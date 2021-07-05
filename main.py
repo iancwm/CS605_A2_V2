@@ -1,107 +1,62 @@
 #%% Preprocessing
 import torch
+import torchtext
 from torchtext import data
-from torchtext import datasets
+import sys
+import numpy as np
+import pandas as pd
+import spacy
+import random
+from yaml import safe_load
 
-SEED = 1234
+from src.preprocessing import *
+from src.model import *
+from src.train import *
 
-torch.manual_seed(SEED)
-torch.backends.cudnn.deterministic = True
+print(f"System version: {sys.version}")
+print(f"Numpy version: {np.__version__}")
+print(f"Pandas version: {pd.__version__}")
+print(f"Torch version: {torch.__version__}")
+print(f"Torchtext version: {torchtext.__version__}")
+print(f"Spacy version: {spacy.__version__}")
+
+with open("parameters.yml","r",encoding='utf8') as stream:
+    parameters = safe_load(stream)
+
+train_path = parameters['preprocessing_parameters']['train_path']
+test_path = parameters['preprocessing_parameters']['test_path']
+vectors = parameters['preprocessing_parameters']['vectors']
+tokenizer_language = parameters['preprocessing_parameters']['tokenizer_language']
+
+SEED = parameters['preprocessing_parameters']['SEED']
+MAX_VOCAB_SIZE = parameters['preprocessing_parameters']['MAX_VOCAB_SIZE']
+BATCH_SIZE = parameters['preprocessing_parameters']['BATCH_SIZE']
+
+torch.backends.cudnn.deterministic = parameters['preprocessing_parameters']['deterministic']
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 TEXT = data.Field(tokenize = 'spacy',
-                  tokenizer_language = 'en_core_web_sm',
+                  tokenizer_language = tokenizer_language,
                   include_lengths = True)
 
 LABEL = data.LabelField(dtype = torch.float)
 
-from torchtext import datasets
+train_data, valid_data, test_data = split_data(train_path,test_path,TEXT,LABEL,random.seed(SEED))
 
-train_data, test_data = datasets.IMDB.splits(TEXT, LABEL)
+build_vocab(TEXT=TEXT, LABEL=LABEL, train_data=train_data,MAX_VOCAB_SIZE=MAX_VOCAB_SIZE,vectors=vectors)
 
-import random
-
-train_data, valid_data = train_data.split(random_state = random.seed(SEED))
-
-MAX_VOCAB_SIZE = 25_000
-
-TEXT.build_vocab(train_data, 
-                 max_size = MAX_VOCAB_SIZE, 
-                 vectors = "glove.6B.100d", 
-                 unk_init = torch.Tensor.normal_)
-
-LABEL.build_vocab(train_data)
-
-BATCH_SIZE = 64
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits(
-    (train_data, valid_data, test_data), 
-    batch_size = BATCH_SIZE,
-    sort_within_batch = True,
-    device = device)
+train_iterator, valid_iterator, test_iterator = get_iterators(train_data,valid_data,test_data,BATCH_SIZE=BATCH_SIZE)
 
 #%% Build the model
-
-import torch.nn as nn
-
-class RNN(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, n_layers, 
-                 bidirectional, dropout, pad_idx):
-        
-        super().__init__()
-        
-        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx = pad_idx)
-        
-        self.rnn = nn.LSTM(embedding_dim, 
-                           hidden_dim, 
-                           num_layers=n_layers, 
-                           bidirectional=bidirectional, 
-                           dropout=dropout)
-        
-        self.fc = nn.Linear(hidden_dim * 2, output_dim)
-        
-        self.dropout = nn.Dropout(dropout)
-        
-    def forward(self, text, text_lengths):
-        
-        #text = [sent len, batch size]
-        
-        embedded = self.dropout(self.embedding(text))
-        
-        #embedded = [sent len, batch size, emb dim]
-        
-        #pack sequence
-        # lengths need to be on CPU!
-        packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths.to('cpu'))
-        
-        packed_output, (hidden, cell) = self.rnn(packed_embedded)
-        
-        #unpack sequence
-        output, output_lengths = nn.utils.rnn.pad_packed_sequence(packed_output)
-
-        #output = [sent len, batch size, hid dim * num directions]
-        #output over padding tokens are zero tensors
-        
-        #hidden = [num layers * num directions, batch size, hid dim]
-        #cell = [num layers * num directions, batch size, hid dim]
-        
-        #concat the final forward (hidden[-2,:,:]) and backward (hidden[-1,:,:]) hidden layers
-        #and apply dropout
-        
-        hidden = self.dropout(torch.cat((hidden[-2,:,:], hidden[-1,:,:]), dim = 1))
-                
-        #hidden = [batch size, hid dim * num directions]
-            
-        return self.fc(hidden)
-    
+ 
 INPUT_DIM = len(TEXT.vocab)
-EMBEDDING_DIM = 100
-HIDDEN_DIM = 256
-OUTPUT_DIM = 1
-N_LAYERS = 2
-BIDIRECTIONAL = True
-DROPOUT = 0.5
+EMBEDDING_DIM = parameters['model_parameters']['EMBEDDING_DIM']
+HIDDEN_DIM = parameters['model_parameters']['HIDDEN_DIM']
+OUTPUT_DIM = parameters['model_parameters']['OUTPUT_DIM']
+N_LAYERS = parameters['model_parameters']['N_LAYERS']
+BIDIRECTIONAL = parameters['model_parameters']['BIDIRECTIONAL']
+DROPOUT = parameters['model_parameters']['DROPOUT']
 PAD_IDX = TEXT.vocab.stoi[TEXT.pad_token]
 
 model = RNN(INPUT_DIM, 
@@ -113,8 +68,7 @@ model = RNN(INPUT_DIM,
             DROPOUT, 
             PAD_IDX)
 
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 print(f'The model has {count_parameters(model):,} trainable parameters')
 
@@ -142,79 +96,10 @@ criterion = nn.BCEWithLogitsLoss()
 model = model.to(device)
 criterion = criterion.to(device)
 
-def binary_accuracy(preds, y):
-    """
-    Returns accuracy per batch, i.e. if you get 8/10 right, this returns 0.8, NOT 8
-    """
-
-    #round predictions to the closest integer
-    rounded_preds = torch.round(torch.sigmoid(preds))
-    correct = (rounded_preds == y).float() #convert into float for division 
-    acc = correct.sum() / len(correct)
-    return acc
-
-def train(model, iterator, optimizer, criterion):
-    
-    epoch_loss = 0
-    epoch_acc = 0
-    
-    model.train()
-    
-    for batch in iterator:
-        
-        optimizer.zero_grad()
-        
-        text, text_lengths = batch.text
-        
-        predictions = model(text, text_lengths).squeeze(1)
-        
-        loss = criterion(predictions, batch.label)
-        
-        acc = binary_accuracy(predictions, batch.label)
-        
-        loss.backward()
-        
-        optimizer.step()
-        
-        epoch_loss += loss.item()
-        epoch_acc += acc.item()
-        
-    return epoch_loss / len(iterator), epoch_acc / len(iterator)
-
-def evaluate(model, iterator, criterion):
-    
-    epoch_loss = 0
-    epoch_acc = 0
-    
-    model.eval()
-    
-    with torch.no_grad():
-    
-        for batch in iterator:
-
-            text, text_lengths = batch.text
-            
-            predictions = model(text, text_lengths).squeeze(1)
-            
-            loss = criterion(predictions, batch.label)
-            
-            acc = binary_accuracy(predictions, batch.label)
-
-            epoch_loss += loss.item()
-            epoch_acc += acc.item()
-        
-    return epoch_loss / len(iterator), epoch_acc / len(iterator)
-
 import time
 
-def epoch_time(start_time, end_time):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-    return elapsed_mins, elapsed_secs
-
-N_EPOCHS = 5
-
+N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
+model_name = parameters['model_parameters']['model_name']
 best_valid_loss = float('inf')
 
 for epoch in range(N_EPOCHS):
@@ -230,13 +115,15 @@ for epoch in range(N_EPOCHS):
     
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        torch.save(model.state_dict(), 'tut2-model.pt')
+        torch.save(model.state_dict(), model_name)
     
     print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
+
+
     
-model.load_state_dict(torch.load('tut2-model.pt'))
+model.load_state_dict(torch.load(model_name))
 
 test_loss, test_acc = evaluate(model, test_iterator, criterion)
 
@@ -245,7 +132,7 @@ print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 #%% User Input
 
 import spacy
-nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load(tokenizer_language)
 
 def predict_sentiment(model, sentence):
     model.eval()
@@ -256,9 +143,11 @@ def predict_sentiment(model, sentence):
     tensor = tensor.unsqueeze(1)
     length_tensor = torch.LongTensor(length)
     prediction = torch.sigmoid(model(tensor, length_tensor))
-    return prediction.item()
+    result = prediction.item()
+    print(f"Results for {sentence}")
+    print(result)
+    return result
 
 predict_sentiment(model, "This film is terrible")
 
 predict_sentiment(model, "This film is great")
-# %%
