@@ -99,8 +99,13 @@ criterion = criterion.to(device)
 import time
 
 N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
-model_name = parameters['model_parameters']['model_name']
+model_dict_name = parameters['model_parameters']['model_dict_name']
 best_valid_loss = float('inf')
+
+import pandas as pd
+
+train_history=pd.DataFrame({'train_loss':[],'train_acc':[]})
+valid_history=pd.DataFrame({'valid_loss':[],'valid_acc':[]})
 
 for epoch in range(N_EPOCHS):
 
@@ -115,39 +120,33 @@ for epoch in range(N_EPOCHS):
     
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        torch.save(model.state_dict(), model_name)
+        print(f"Saving model parameters to [{model_dict_name}]")
+        torch.save(model.state_dict(), model_dict_name)
+    train_result_dict = {'train_loss':train_loss,'train_acc':train_acc}
+    valid_result_dict = {'valid_loss':valid_loss,'valid_acc':valid_acc}
+    
+    train_history[epoch]=train_result_dict
+    valid_history[epoch]=valid_result_dict
     
     print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
+from matplotlib import pyplot as plt
 
-    
-model.load_state_dict(torch.load(model_name))
+train_hist = train_history.plot(title=f"Training History - {model_dict_name}")
+plt.savefig(f"{model_dict_name}_train_hist.png")
+
+valid_hist = valid_history.plot(title=f"Validation History - {model_dict_name}")
+plt.savefig(f"{model_dict_name}_val_hist.png")
+
+model.load_state_dict(torch.load(model_dict_name))
 
 test_loss, test_acc = evaluate(model, test_iterator, criterion)
 
 print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 
-#%% User Input
+model_name = parameters['model_parameters']['model_name']
 
-import spacy
-nlp = spacy.load(tokenizer_language)
-
-def predict_sentiment(model, sentence):
-    model.eval()
-    tokenized = [tok.text for tok in nlp.tokenizer(sentence)]
-    indexed = [TEXT.vocab.stoi[t] for t in tokenized]
-    length = [len(indexed)]
-    tensor = torch.LongTensor(indexed).to(device)
-    tensor = tensor.unsqueeze(1)
-    length_tensor = torch.LongTensor(length)
-    prediction = torch.sigmoid(model(tensor, length_tensor))
-    result = prediction.item()
-    print(f"Results for {sentence}")
-    print(result)
-    return result
-
-predict_sentiment(model, "This film is terrible")
-
-predict_sentiment(model, "This film is great")
+print(f"Saving model as [{model_name}]")
+torch.save(model, model_name)
