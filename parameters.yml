@@ -8,6 +8,7 @@ preprocessing_parameters:
   test_path: data\Valid.csv
   vectors: glove.6B.100d
   deterministic: True
+  tokenizer: spacy
   tokenizer_language: en_core_web_sm
 
 model_parameters:
@@ -20,3 +21,6 @@ model_parameters:
   N_EPOCHS: 30
   model_dict_name: my_model_dict.pt
   model_name: my_model.pt
+
+persistence_parameters:
+  vocab_filename: TEXT
