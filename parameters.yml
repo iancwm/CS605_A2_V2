@@ -1,5 +1,5 @@
 ---
-
+# Critical parameters for preprocessing pipeline
 preprocessing_parameters:
   SEED: 1234
   MAX_VOCAB_SIZE: 25_000
@@ -11,6 +11,7 @@ preprocessing_parameters:
   tokenizer: spacy
   tokenizer_language: en_core_web_sm
 
+# Critical parameters for model construction
 model_parameters:
   EMBEDDING_DIM: 100
   HIDDEN_DIM: 256
@@ -18,9 +19,13 @@ model_parameters:
   N_LAYERS: 2
   BIDIRECTIONAL: True
   DROPOUT: 0.5
-  N_EPOCHS: 30
-  model_dict_name: my_model_dict.pt
-  model_name: my_model.pt
+  N_EPOCHS: 3
+  model_dict_name: 2_layers_dict.pt
+  model_name: 2_layers.pt
+  model_dir: model
+  chart_dir: charts
 
+# Critical parameters to save progress
 persistence_parameters:
+  vocab_dir: vocab
   vocab_filename: TEXT

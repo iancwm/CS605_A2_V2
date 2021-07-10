@@ -1,0 +1,10 @@
+/.data
+/.vector_cache
+/.vscode
+/model
+/vocab
+/charts
+prototype.ipynb
+src/__pycache__/model.cpython-36.pyc
+src/__pycache__/preprocessing.cpython-36.pyc
+src/__pycache__/train.cpython-36.pyc

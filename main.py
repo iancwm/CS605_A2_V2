@@ -3,15 +3,17 @@ import torch
 import torch.optim as optim
 import torchtext
 from torchtext import data
-import sys
-import numpy as np
 import spacy
+
+import numpy as np
 import pandas as pd
 import random
-from yaml import safe_load
-import pickle
 from matplotlib import pyplot as plt
+
+import sys
+import pickle
 import time
+import os
 
 from src.preprocessing import *
 from src.model import *
@@ -36,6 +38,7 @@ SEED = parameters['preprocessing_parameters']['SEED']
 MAX_VOCAB_SIZE = parameters['preprocessing_parameters']['MAX_VOCAB_SIZE']
 BATCH_SIZE = parameters['preprocessing_parameters']['BATCH_SIZE']
 
+torch.manual_seed(SEED)
 torch.backends.cudnn.deterministic = parameters['preprocessing_parameters']['deterministic']
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -57,10 +60,14 @@ train_iterator, valid_iterator, test_iterator = get_iterators(
 
 # Save vocab for retrieval
 filename = parameters['persistence_parameters']['vocab_filename']
-with open(filename, 'wb') as f:
+vocab_dir = parameters['persistence_parameters']['vocab_dir']
+
+if not os.path.exists(vocab_dir):
+    os.makedirs(vocab_dir)
+
+with open(f"{vocab_dir}\{filename}", 'wb') as f:
     pickle.dump(TEXT, f)
 
-# %% Build the model
 
 INPUT_DIM = len(TEXT.vocab)
 EMBEDDING_DIM = parameters['model_parameters']['EMBEDDING_DIM']
@@ -109,9 +116,13 @@ N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
 model_dict_name = parameters['model_parameters']['model_dict_name']
 best_valid_loss = float('inf')
 
-
 train_history = pd.DataFrame({'train_loss': [], 'train_acc': []})
 valid_history = pd.DataFrame({'valid_loss': [], 'valid_acc': []})
+
+model_dir = parameters['model_parameters']['model_dir']
+
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 for epoch in range(N_EPOCHS):
 
@@ -126,8 +137,8 @@ for epoch in range(N_EPOCHS):
 
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        print(f"Saving model parameters to [{model_dict_name}]")
-        torch.save(model.state_dict(), model_dict_name)
+        print(f"Saving model parameters to [{model_dir}\{model_dict_name}]")
+        torch.save(model.state_dict(), f"{model_dir}\{model_dict_name}")
 
     train_result_dict = {'train_loss': train_loss, 'train_acc': train_acc}
     valid_result_dict = {'valid_loss': valid_loss, 'valid_acc': valid_acc}
@@ -139,14 +150,21 @@ for epoch in range(N_EPOCHS):
     print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
+# Visualization
+
+chart_dir = parameters['model_parameters']['chart_dir']
+
+if not os.path.exists(chart_dir):
+    os.makedirs(chart_dir)
+
 train_hist = train_history.plot(title=f"Training History - {model_dict_name}")
-plt.savefig(f"{model_dict_name}_train_hist.png")
+plt.savefig(f"{chart_dir}\{model_dict_name}_train_hist.png")
 
 valid_hist = valid_history.plot(
     title=f"Validation History - {model_dict_name}")
-plt.savefig(f"{model_dict_name}_val_hist.png")
+plt.savefig(f"{chart_dir}\{model_dict_name}_val_hist.png")
 
-model.load_state_dict(torch.load(model_dict_name))
+model.load_state_dict(torch.load(f"{model_dir}\{model_dict_name}"))
 
 test_loss, test_acc = evaluate(model, test_iterator, criterion)
 
@@ -155,4 +173,6 @@ print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 model_name = parameters['model_parameters']['model_name']
 
 print(f"Saving model as [{model_name}]")
-torch.save(model, model_name)
+torch.save(model, f"{model_dir}\{model_name}")
+
+save_results("results.csv", model_name, test_loss, test_acc)
