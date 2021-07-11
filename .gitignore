@@ -5,6 +5,11 @@
 /vocab
 /charts
 prototype.ipynb
+results.csv
 src/__pycache__/model.cpython-36.pyc
 src/__pycache__/preprocessing.cpython-36.pyc
 src/__pycache__/train.cpython-36.pyc
+data/preprocessed_Train.csv
+data/preprocessed_Valid.csv
+/results
+/predictions

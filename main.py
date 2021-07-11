@@ -33,6 +33,7 @@ test_path = parameters['preprocessing_parameters']['test_path']
 vectors = parameters['preprocessing_parameters']['vectors']
 tokenizer = parameters['preprocessing_parameters']['tokenizer']
 tokenizer_language = parameters['preprocessing_parameters']['tokenizer_language']
+data_path = parameters['preprocessing_parameters']['data_path']
 
 SEED = parameters['preprocessing_parameters']['SEED']
 MAX_VOCAB_SIZE = parameters['preprocessing_parameters']['MAX_VOCAB_SIZE']
@@ -49,8 +50,11 @@ TEXT = data.Field(tokenize=tokenizer,
 
 LABEL = data.LabelField(dtype=torch.float)
 
+preprocess_text(data_path, train_path)
+preprocess_text(data_path, test_path)
+
 train_data, valid_data, test_data = split_data(
-    train_path, test_path, TEXT, LABEL, random.seed(SEED))
+    train_path, test_path, TEXT, LABEL, random.seed(SEED), data_path)
 
 build_vocab(TEXT=TEXT, LABEL=LABEL, train_data=train_data,
             MAX_VOCAB_SIZE=MAX_VOCAB_SIZE, vectors=vectors)
@@ -175,4 +179,4 @@ model_name = parameters['model_parameters']['model_name']
 print(f"Saving model as [{model_name}]")
 torch.save(model, f"{model_dir}\{model_name}")
 
-save_results("results.csv", model_name, test_loss, test_acc)
+save_results("results\results.csv", model_name, test_loss, test_acc)

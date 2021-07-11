@@ -1,7 +1,29 @@
 import torch
+import re
 from torchtext import data
 from yaml import safe_load
 import pickle
+import pandas as pd
+
+
+def clean_text(text):
+    text_new = re.sub(r'[^\w\s.]', '', text)  # only keep words, numbers and .
+    text_new = [word for word in text_new.split(
+        ' ') if word != 'br']  # br comes from < \br>
+    text_new = " ".join(text_new[:128]+text_new[-382:]
+                        if len(text_new) > 512 else text_new)
+    # This step is used to deal with long text. I will keep the head and tail when the length
+    # of tokens is greater than 512
+    return(text_new)
+
+
+def preprocess_text(folder, file_path):
+
+    df = pd.read_csv(f"{folder}\{file_path}")
+    df['Text_preprocessed'] = df['Text'].apply(lambda x: clean_text(x))
+    df[['Text_preprocessed', 'Label']].to_csv(
+        f"{folder}\preprocessed_{file_path}")
+    return None
 
 
 def load_parameters(yaml_path):
@@ -30,7 +52,7 @@ def split_data(train_path, test_path, TEXT, LABEL, SEED, path='', format='csv', 
         test_data (torchtext.data.TabularDataset):       testing data
         valid_data (torchtext.data.TabularDataset):      validation data
     """
-    fields = [('Text', TEXT), ('Label', LABEL)]
+    fields = [('Text_preprocessed', TEXT), ('Label', LABEL)]
 
     train_data, test_data = data.TabularDataset.splits(
         path=path,
@@ -91,7 +113,7 @@ def get_iterators(train_data, valid_data, test_data, BATCH_SIZE=64):
     train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits(
         (train_data, valid_data, test_data),
         batch_size=BATCH_SIZE,
-        sort_key=lambda x: len(x.Text),
+        sort_key=lambda x: len(x.Text_preprocessed),
         sort_within_batch=True,
         device=device)
 
@@ -107,13 +129,13 @@ def save_vocab(filename):
 
 def load_vocab(filename):
     """Loads vocabulary file for predictions
-    
+
     Args:
         filename (str):                 Path to Vocab object
-        
+
     Yields:
         TEXT_load (torchtext.Vocab):    Vocab object for use in prediction
-    
+
     """
     with open(filename, 'rb') as f:
         TEXT_load = pickle.load(f)
