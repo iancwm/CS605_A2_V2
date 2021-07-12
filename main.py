@@ -1,4 +1,3 @@
-# %% Preprocessing
 import torch
 import torch.optim as optim
 import torchtext
@@ -14,6 +13,7 @@ import sys
 import pickle
 import time
 import os
+import warnings
 
 from src.preprocessing import *
 from src.model import *
@@ -26,8 +26,10 @@ print(f"Torch version: {torch.__version__}")
 print(f"Torchtext version: {torchtext.__version__}")
 print(f"Spacy version: {spacy.__version__}")
 
-parameters = load_parameters('parameters.yml')
+warnings.filterwarnings("ignore")
 
+parameters = load_parameters('parameters.yml')
+#%% Text Preprocessing
 train_path = parameters['preprocessing_parameters']['train_path']
 test_path = parameters['preprocessing_parameters']['test_path']
 vectors = parameters['preprocessing_parameters']['vectors']
@@ -44,25 +46,35 @@ torch.backends.cudnn.deterministic = parameters['preprocessing_parameters']['det
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+
 TEXT = data.Field(tokenize=tokenizer,
                   tokenizer_language=tokenizer_language,
                   include_lengths=True)
 
 LABEL = data.LabelField(dtype=torch.float)
 
+print(f"Preprocessing text from {train_path}...")
 preprocess_text(data_path, train_path)
+print(f"Done!")
+
+print(f"Preprocessing text from {test_path}...")
 preprocess_text(data_path, test_path)
+print(f"Done!")
 
 train_data, valid_data, test_data = split_data(
     train_path, test_path, TEXT, LABEL, random.seed(SEED), data_path)
 
+print("Building vocabulary...")
 build_vocab(TEXT=TEXT, LABEL=LABEL, train_data=train_data,
             MAX_VOCAB_SIZE=MAX_VOCAB_SIZE, vectors=vectors)
+print("Done!")
 
+print(f"Generating dataset iterators...")
 train_iterator, valid_iterator, test_iterator = get_iterators(
     train_data, valid_data, test_data, BATCH_SIZE=BATCH_SIZE)
+print("Done!")
 
-# Save vocab for retrieval
 filename = parameters['persistence_parameters']['vocab_filename']
 vocab_dir = parameters['persistence_parameters']['vocab_dir']
 
@@ -72,6 +84,9 @@ if not os.path.exists(vocab_dir):
 with open(f"{vocab_dir}\{filename}", 'wb') as f:
     pickle.dump(TEXT, f)
 
+print(f"Saved Vocab object [{filename}] at [{vocab_dir}] for later retrieval!")
+
+#%% Model construction
 
 INPUT_DIM = len(TEXT.vocab)
 EMBEDDING_DIM = parameters['model_parameters']['EMBEDDING_DIM']
@@ -107,14 +122,14 @@ model.embedding.weight.data[PAD_IDX] = torch.zeros(EMBEDDING_DIM)
 
 print(model.embedding.weight.data)
 
-# %% Train the Model
-
 optimizer = optim.Adam(model.parameters())
 
 criterion = nn.BCEWithLogitsLoss()
 
 model = model.to(device)
 criterion = criterion.to(device)
+
+#%% Model training
 
 N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
 model_dict_name = parameters['model_parameters']['model_dict_name']
@@ -154,7 +169,7 @@ for epoch in range(N_EPOCHS):
     print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
-# Visualization
+#%% Data visualization
 
 chart_dir = parameters['model_parameters']['chart_dir']
 
@@ -162,12 +177,15 @@ if not os.path.exists(chart_dir):
     os.makedirs(chart_dir)
 
 train_hist = train_history.plot(title=f"Training History - {model_dict_name}")
-plt.savefig(f"{chart_dir}\{model_dict_name}_train_hist.png")
+plt.savefig(f"{chart_dir}/{model_dict_name}_train_hist.png")
 
 valid_hist = valid_history.plot(
     title=f"Validation History - {model_dict_name}")
-plt.savefig(f"{chart_dir}\{model_dict_name}_val_hist.png")
+plt.savefig(f"{chart_dir}/{model_dict_name}_val_hist.png")
+print(f"Charts saved at [{chart_dir}]!")
 
+
+#%% Model testing
 model.load_state_dict(torch.load(f"{model_dir}\{model_dict_name}"))
 
 test_loss, test_acc = evaluate(model, test_iterator, criterion)
@@ -177,6 +195,7 @@ print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 model_name = parameters['model_parameters']['model_name']
 
 print(f"Saving model as [{model_name}]")
-torch.save(model, f"{model_dir}\{model_name}")
+torch.save(model, f"{model_dir}/{model_name}")
 
-save_results("results\results.csv", model_name, test_loss, test_acc)
+save_results("results/results.csv", model_name, test_loss, test_acc)
+print(f"Results saved in [results] folder")

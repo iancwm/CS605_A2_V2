@@ -26,7 +26,7 @@ def parse_file(file_name):
                         'index', 'text']).set_index('index')
     data['text_preprocessed'] = data['text'].apply(clean_text)
 
-    return data
+    return data['text_preprocessed']
 
 
 if __name__ == '__main__':
@@ -56,8 +56,8 @@ if __name__ == '__main__':
     model.eval()
 
     result = parse_file(target_file)
-    result['prediction'] = result['text_preprocessed'].apply(
-        lambda x: predict_sentiment(model, x, TEXT_load, nlp, device))
+    result = pd.concat([result, result.apply(lambda x: predict_sentiment(
+        model, x, TEXT_load, nlp, device)).rename('prediction')], axis=1)
 
     if not os.path.exists("predictions"):
         os.makedirs("predictions")

@@ -8,12 +8,11 @@ import pandas as pd
 
 def clean_text(text):
     text_new = re.sub(r'[^\w\s.]', '', text)  # only keep words, numbers and .
-    text_new = [word for word in text_new.split(
-        ' ') if word != 'br']  # br comes from < \br>
+    text_new = re.sub(r'<br\s?\/>|<br>', "", text)
+    # text_new = [word for word in text_new.split(
+    #     ' ') if word != 'br']  # br comes from < \br>
     text_new = " ".join(text_new[:128]+text_new[-382:]
-                        if len(text_new) > 512 else text_new)
-    # This step is used to deal with long text. I will keep the head and tail when the length
-    # of tokens is greater than 512
+                        if len(text_new) > 512 else text_new)    
     return(text_new)
 
 
