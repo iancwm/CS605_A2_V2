@@ -20,13 +20,19 @@ model_parameters:
   N_LAYERS: 1
   BIDIRECTIONAL: True
   DROPOUT: 0.5
-  N_EPOCHS: 5
-  model_dict_name: 1_layers_dict.pt
-  model_name: 1_layers.pt
+  N_EPOCHS: 20
+
+# Folder and file names
+folders:
+  results: training_results
+  results_filename: results.csv
+  model_dict_name: 1_layer_dict.pt
+  model_name: 1_layer.pt
   model_dir: model
   chart_dir: charts
-
-# Critical parameters to save progress
-persistence_parameters:
   vocab_dir: vocab
   vocab_filename: TEXT
+  
+# Critical parameters to save progress
+prediction_parameters:  
+  sentiment_threshold: 0.5

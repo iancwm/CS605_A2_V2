@@ -31,14 +31,14 @@ def parse_file(file_name):
 
 if __name__ == '__main__':
     # To use this script, use "python predict.py model_name target_file" in command line
-    assert len(sys.argv) == 3, "Please pass only one filename to the program"
+    assert len(sys.argv) == 3, "Please use the following syntax: python predict.py model_name target_file"
     parameters = load_parameters('parameters.yml')
 
     model_name = sys.argv[1]
     target_file = sys.argv[2]
 
-    vocab_filename = parameters['persistence_parameters']['vocab_filename']
-    vocab_dir = parameters['persistence_parameters']['vocab_dir']
+    vocab_filename = parameters['folders']['vocab_filename']
+    vocab_dir = parameters['folders']['vocab_dir']
 
     if not os.path.exists(vocab_dir):
         os.makedirs(vocab_dir)
@@ -51,13 +51,15 @@ if __name__ == '__main__':
 
     nlp = spacy.load(tokenizer_language)
 
-    model_dir = parameters['model_parameters']['model_dir']
+    model_dir = parameters['folders']['model_dir']
     model = torch.load(f"{model_dir}\{model_name}")
     model.eval()
 
     result = parse_file(target_file)
-    result = pd.concat([result, result.apply(lambda x: predict_sentiment(
-        model, x, TEXT_load, nlp, device)).rename('prediction')], axis=1)
+    sentiment = result.apply(lambda x: predict_sentiment(model, x, TEXT_load, nlp, device))
+    threshold = parameters['prediction_parameters']['sentiment_threshold']
+    sentiment = sentiment.apply(lambda x: 1 if x > threshold else 0)
+    result = pd.concat([result, sentiment.rename('prediction')], axis=1)
 
     if not os.path.exists("predictions"):
         os.makedirs("predictions")

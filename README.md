@@ -1,3 +1,26 @@
+# Setup Instructions [IMPORTANT]
+
+Run the following in command line to setup the virtual environment
+
+1. `pip install -r requirements.txt`
+2. `python -m spacy download en_core_web_sm`
+
+Next, open up a python interpreter and run the following to set up `nltk`:
+
+1. `nltk.download('stopwords')`
+2. `nltk.download('wordnet')`
+
+Packages specified in `requirements.txt` are:
+
+|package|version|comments|
+|---|---|---|
+|`torch`|`1.7.0+cu101`|Use `pip` in anaconda|
+|`torchtext`|`0.8.0`||
+|`transformers`|`4.5.0`||
+|`numpy`|`1.19.5`||
+|`spacy`|`3.0.6`|Install `en_core_web_sm`|
+|`nltk`|`3.6.2`||
+
 # Layout
 
 ## Folder structure
@@ -9,10 +32,11 @@ The project consists of the following folders:
 
 The code will create the following folders:
 
-- `results`:    Stores the results of the training for each model
-- `charts`:     Visualizations for the training process
-- `model`:      Saves the models here
-- `vocab`:      Saves the generated Vocab object used for prediction
+- `training_results`:   Stores the results of the training for each model
+- `charts`:             Visualizations for the training process
+- `model`:              Saves the models here
+- `vocab`:              Saves the generated Vocab object used for prediction
+- `predictions`:        Saves `.csv` containing *pre-processed* prediction text and sentiment classification (`0` for negative or `1` for positive)
 
 ## YAML parameters
 
@@ -29,12 +53,15 @@ Change important experiment parameters in this file, including:
 
 # Directions
 
-## 1. Training the model
-This is straight forward - run `main.py`.
+## 1. Preprocessing
+This is straight forward - run `preprocess.py`.
+
+## 2. Training the model
+This is straight forward - run `run.py`.
 
 Parameters will be extracted from `parameters.yml`, and the relevant folders created for output.
 
-## 2. Prediction
+## 3. Prediction
 This file is run from the command line, and the required syntax is:
 
 `python predict.py <model_name> <target_file>`
@@ -44,14 +71,14 @@ The script will:
 - Look for data in the `data` folder
 - Preprocess the text
 
-After loading the saved `Vocab` object and model specified in `parameters.yml`, the model will be used to predict the sentiment of the input.
+After loading the saved `Vocab` object and model specified in `parameters.yml`, the model will be used to predict the sentiment of the input. If the score is above the threshold set in parameters (default is 0.5), it will return 1 (positive sentiment), else it will return 0 (negative sentiment).
 
 The results will be written to `results.csv` under the `results` folder with the format
 
 |index|text_preprocessed|prediction|
 |---|---|---|
-|1|preprocessed text 1|prediction score 1|
-|2|preprocessed text 2|prediction score 2|
+|1|preprocessed text 1|predicted sentiment|
+|2|preprocessed text 2|predicted sentiment|
 
 ...and so on.
 

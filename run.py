@@ -1,3 +1,4 @@
+import nltk
 import torch
 import torch.optim as optim
 import torchtext
@@ -25,11 +26,12 @@ print(f"Pandas version: {pd.__version__}")
 print(f"Torch version: {torch.__version__}")
 print(f"Torchtext version: {torchtext.__version__}")
 print(f"Spacy version: {spacy.__version__}")
+print(f"Spacy version: {nltk.__version__}")
 
 warnings.filterwarnings("ignore")
 
 parameters = load_parameters('parameters.yml')
-#%% Text Preprocessing
+#%% Data loading
 train_path = parameters['preprocessing_parameters']['train_path']
 test_path = parameters['preprocessing_parameters']['test_path']
 vectors = parameters['preprocessing_parameters']['vectors']
@@ -46,24 +48,14 @@ torch.backends.cudnn.deterministic = parameters['preprocessing_parameters']['det
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-
 TEXT = data.Field(tokenize=tokenizer,
                   tokenizer_language=tokenizer_language,
                   include_lengths=True)
 
 LABEL = data.LabelField(dtype=torch.float)
 
-print(f"Preprocessing text from {train_path}...")
-preprocess_text(data_path, train_path)
-print(f"Done!")
-
-print(f"Preprocessing text from {test_path}...")
-preprocess_text(data_path, test_path)
-print(f"Done!")
-
 train_data, valid_data, test_data = split_data(
-    train_path, test_path, TEXT, LABEL, random.seed(SEED), data_path)
+    f"preprocessed_{train_path}", f"preprocessed_{test_path}", TEXT, LABEL, random.seed(SEED), data_path)
 
 print("Building vocabulary...")
 build_vocab(TEXT=TEXT, LABEL=LABEL, train_data=train_data,
@@ -75,8 +67,8 @@ train_iterator, valid_iterator, test_iterator = get_iterators(
     train_data, valid_data, test_data, BATCH_SIZE=BATCH_SIZE)
 print("Done!")
 
-filename = parameters['persistence_parameters']['vocab_filename']
-vocab_dir = parameters['persistence_parameters']['vocab_dir']
+filename = parameters['folders']['vocab_filename']
+vocab_dir = parameters['folders']['vocab_dir']
 
 if not os.path.exists(vocab_dir):
     os.makedirs(vocab_dir)
@@ -132,13 +124,13 @@ criterion = criterion.to(device)
 #%% Model training
 
 N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
-model_dict_name = parameters['model_parameters']['model_dict_name']
+model_dict_name = parameters['folders']['model_dict_name']
 best_valid_loss = float('inf')
 
 train_history = pd.DataFrame({'train_loss': [], 'train_acc': []})
 valid_history = pd.DataFrame({'valid_loss': [], 'valid_acc': []})
 
-model_dir = parameters['model_parameters']['model_dir']
+model_dir = parameters['folders']['model_dir']
 
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
@@ -156,8 +148,8 @@ for epoch in range(N_EPOCHS):
 
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        print(f"Saving model parameters to [{model_dir}\{model_dict_name}]")
-        torch.save(model.state_dict(), f"{model_dir}\{model_dict_name}")
+        print(f"Saving model parameters to [{model_dir}/{model_dict_name}]")
+        torch.save(model.state_dict(), f"{model_dir}/{model_dict_name}")
 
     train_result_dict = {'train_loss': train_loss, 'train_acc': train_acc}
     valid_result_dict = {'valid_loss': valid_loss, 'valid_acc': valid_acc}
@@ -171,7 +163,7 @@ for epoch in range(N_EPOCHS):
 
 #%% Data visualization
 
-chart_dir = parameters['model_parameters']['chart_dir']
+chart_dir = parameters['folders']['chart_dir']
 
 if not os.path.exists(chart_dir):
     os.makedirs(chart_dir)
@@ -192,10 +184,16 @@ test_loss, test_acc = evaluate(model, test_iterator, criterion)
 
 print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
 
-model_name = parameters['model_parameters']['model_name']
+model_name = parameters['folders']['model_name']
 
 print(f"Saving model as [{model_name}]")
 torch.save(model, f"{model_dir}/{model_name}")
 
-save_results("results/results.csv", model_name, test_loss, test_acc)
+results_folder = parameters['folders']['results']
+results_file = parameters['folders']['results_filename']
+
+if not os.path.exists(results_folder):
+    os.makedirs(results_folder)
+
+save_results(f"{results_folder}/{results_file}", model_name, test_loss, test_acc)
 print(f"Results saved in [results] folder")

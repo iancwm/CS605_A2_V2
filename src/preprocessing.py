@@ -4,24 +4,68 @@ from torchtext import data
 from yaml import safe_load
 import pickle
 import pandas as pd
+import re
+from nltk import word_tokenize
+import string
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+
+def remove_punctuation(tokens):
+    """Helper function to remove punctuation from list of tokens"""
+    table = str.maketrans('', '', string.punctuation)
+    stripped = [w.translate(table) for w in tokens]    
+    return stripped
+
+
+def remove_stopwords(tokens):
+    """Helper function to remove stopwords from list of tokens"""
+    stop_words = set(stopwords.words('english'))
+    stopwords_removed = [w for w in tokens if not w in stop_words]
+    return stopwords_removed
+
+
+def lemmatize(tokens):
+    """Helper function to lemmatize list of tokens"""
+    lemmatizer = WordNetLemmatizer()
+    lemmatized_words = [lemmatizer.lemmatize(w) for w in tokens]
+    return lemmatized_words
 
 
 def clean_text(text):
-    text_new = re.sub(r'[^\w\s.]', '', text)  # only keep words, numbers and .
-    text_new = re.sub(r'<br\s?\/>|<br>', "", text)
-    # text_new = [word for word in text_new.split(
-    #     ' ') if word != 'br']  # br comes from < \br>
-    text_new = " ".join(text_new[:128]+text_new[-382:]
-                        if len(text_new) > 512 else text_new)    
-    return(text_new)
+    """Tokenizes a string, preprocesses the tokens using the helper functions and returns the preprocessed string"""
+    text = re.sub(r'[^\w\s.]', '', text)  # only keep words, numbers and .
+    text = re.sub(r'<br\s?\/>|<br>', "", text)    
+    tokens = word_tokenize(text)
+    stopwords_removed = remove_stopwords(tokens)
+    stripped = remove_punctuation(stopwords_removed)
+    lemmatized_words = lemmatize(stripped)
+    result = " ".join(lemmatized_words)
+    return(result)
 
 
 def preprocess_text(folder, file_path):
-
-    df = pd.read_csv(f"{folder}\{file_path}")
+    """Preprocesses a file
+    
+    Args:
+        folder (str):       Name of folder containing .csv data
+        file_path (str):    Name of file containing data
+        
+    Yields:
+        None
+    
+    Notes:
+        Outputs preprocessed text into a .csv file in the same folder as the source. Adds a 'preprocessed_' prefix to the filename.
+    """
+    
+    source = f"{folder}/{file_path}"
+    print(f"Preprocessing text from {source}...")
+    df = pd.read_csv(source)
     df['Text_preprocessed'] = df['Text'].apply(lambda x: clean_text(x))
+
+    output = f"{folder}/preprocessed_{file_path}"
     df[['Text_preprocessed', 'Label']].to_csv(
-        f"{folder}\preprocessed_{file_path}")
+        output, index=False)
+    print(f"Saved preprocessed text to [{output}]!")
     return None
 
 
@@ -51,8 +95,9 @@ def split_data(train_path, test_path, TEXT, LABEL, SEED, path='', format='csv', 
         test_data (torchtext.data.TabularDataset):       testing data
         valid_data (torchtext.data.TabularDataset):      validation data
     """
-    fields = [('Text_preprocessed', TEXT), ('Label', LABEL)]
-
+    print(f"Splitting data from [{path}/{train_path}]")
+    
+    fields = [('Text_preprocessed', TEXT), ('Label', LABEL)]    
     train_data, test_data = data.TabularDataset.splits(
         path=path,
         train=train_path,

@@ -96,7 +96,6 @@ def predict_sentiment(model, sentence, TEXT, nlp, device):
     tensor = tensor.unsqueeze(1)
     length_tensor = torch.LongTensor(length)
     prediction = torch.sigmoid(model(tensor, length_tensor))
-    result = prediction.item()
-    print(f"Results for {sentence}")
-    print(result)
+    result = prediction.item()   
+    print(f"Sentiment = [{result:.3f}] for {sentence[:50]}...")
     return result
