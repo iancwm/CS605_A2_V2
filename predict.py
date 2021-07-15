@@ -26,12 +26,13 @@ def parse_file(file_name):
                         'index', 'text']).set_index('index')
     data['text_preprocessed'] = data['text'].apply(clean_text)
 
-    return data['text_preprocessed']
+    return data
 
 
 if __name__ == '__main__':
     # To use this script, use "python predict.py model_name target_file" in command line
-    assert len(sys.argv) == 3, "Please use the following syntax: python predict.py model_name target_file"
+    assert len(
+        sys.argv) == 3, "Please use the following syntax: python predict.py model_name target_file"
     parameters = load_parameters('parameters.yml')
 
     model_name = sys.argv[1]
@@ -39,6 +40,7 @@ if __name__ == '__main__':
 
     vocab_filename = parameters['folders']['vocab_filename']
     vocab_dir = parameters['folders']['vocab_dir']
+    output_path = parameters['folders']['output_path']
 
     if not os.path.exists(vocab_dir):
         os.makedirs(vocab_dir)
@@ -56,12 +58,16 @@ if __name__ == '__main__':
     model.eval()
 
     result = parse_file(target_file)
-    sentiment = result.apply(lambda x: predict_sentiment(model, x, TEXT_load, nlp, device))
+    sentiment = result['text_preprocessed'].apply(
+        lambda x: predict_sentiment(model, x, TEXT_load, nlp, device))
     threshold = parameters['prediction_parameters']['sentiment_threshold']
     sentiment = sentiment.apply(lambda x: 1 if x > threshold else 0)
-    result = pd.concat([result, sentiment.rename('prediction')], axis=1)
+    result = pd.concat(
+        [result['text'], sentiment.rename('prediction')], axis=1)
 
-    if not os.path.exists("predictions"):
-        os.makedirs("predictions")
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
-    result.to_csv(f"predictions\{model_name}.csv")
+    print(f"Saving to folder [{output_path}]")
+    result.to_csv(f"{output_path}\prediction_{model_name}.csv",
+                  index=False, header=False)

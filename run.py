@@ -31,13 +31,14 @@ print(f"Spacy version: {nltk.__version__}")
 warnings.filterwarnings("ignore")
 
 parameters = load_parameters('parameters.yml')
-#%% Data loading
-train_path = parameters['preprocessing_parameters']['train_path']
-test_path = parameters['preprocessing_parameters']['test_path']
+# %% Data loading
+train_path = parameters['folders']['train_path']
+test_path = parameters['folders']['test_path']
+data_path = parameters['folders']['data_path']
+output_path = parameters['folders']['output_path']
 vectors = parameters['preprocessing_parameters']['vectors']
 tokenizer = parameters['preprocessing_parameters']['tokenizer']
 tokenizer_language = parameters['preprocessing_parameters']['tokenizer_language']
-data_path = parameters['preprocessing_parameters']['data_path']
 
 SEED = parameters['preprocessing_parameters']['SEED']
 MAX_VOCAB_SIZE = parameters['preprocessing_parameters']['MAX_VOCAB_SIZE']
@@ -78,7 +79,7 @@ with open(f"{vocab_dir}\{filename}", 'wb') as f:
 
 print(f"Saved Vocab object [{filename}] at [{vocab_dir}] for later retrieval!")
 
-#%% Model construction
+# %% Model construction
 
 INPUT_DIM = len(TEXT.vocab)
 EMBEDDING_DIM = parameters['model_parameters']['EMBEDDING_DIM']
@@ -121,7 +122,7 @@ criterion = nn.BCEWithLogitsLoss()
 model = model.to(device)
 criterion = criterion.to(device)
 
-#%% Model training
+# %% Model training
 
 N_EPOCHS = parameters['model_parameters']['N_EPOCHS']
 model_dict_name = parameters['folders']['model_dict_name']
@@ -161,7 +162,7 @@ for epoch in range(N_EPOCHS):
     print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
     print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
 
-#%% Data visualization
+# %% Data visualization
 
 chart_dir = parameters['folders']['chart_dir']
 
@@ -177,7 +178,7 @@ plt.savefig(f"{chart_dir}/{model_dict_name}_val_hist.png")
 print(f"Charts saved at [{chart_dir}]!")
 
 
-#%% Model testing
+# %% Model testing
 model.load_state_dict(torch.load(f"{model_dir}\{model_dict_name}"))
 
 test_loss, test_acc = evaluate(model, test_iterator, criterion)
@@ -189,11 +190,10 @@ model_name = parameters['folders']['model_name']
 print(f"Saving model as [{model_name}]")
 torch.save(model, f"{model_dir}/{model_name}")
 
-results_folder = parameters['folders']['results']
 results_file = parameters['folders']['results_filename']
 
-if not os.path.exists(results_folder):
-    os.makedirs(results_folder)
+if not os.path.exists(output_path):
+    os.makedirs(output_path)
 
-save_results(f"{results_folder}/{results_file}", model_name, test_loss, test_acc)
-print(f"Results saved in [results] folder")
+save_results(f"{output_path}/{results_file}", model_name, test_loss, test_acc)
+print(f"Results saved in [{output_path}] folder")

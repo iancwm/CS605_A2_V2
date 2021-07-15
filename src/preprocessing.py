@@ -10,10 +10,11 @@ import string
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 
+
 def remove_punctuation(tokens):
     """Helper function to remove punctuation from list of tokens"""
     table = str.maketrans('', '', string.punctuation)
-    stripped = [w.translate(table) for w in tokens]    
+    stripped = [w.translate(table) for w in tokens]
     return stripped
 
 
@@ -34,7 +35,7 @@ def lemmatize(tokens):
 def clean_text(text):
     """Tokenizes a string, preprocesses the tokens using the helper functions and returns the preprocessed string"""
     text = re.sub(r'[^\w\s.]', '', text)  # only keep words, numbers and .
-    text = re.sub(r'<br\s?\/>|<br>', "", text)    
+    text = re.sub(r'<br\s?\/>|<br>', "", text)
     tokens = word_tokenize(text)
     stopwords_removed = remove_stopwords(tokens)
     stripped = remove_punctuation(stopwords_removed)
@@ -43,28 +44,28 @@ def clean_text(text):
     return(result)
 
 
-def preprocess_text(folder, file_path):
+def preprocess_text(input_folder, file_path, output_folder):
     """Preprocesses a file
-    
+
     Args:
         folder (str):       Name of folder containing .csv data
         file_path (str):    Name of file containing data
-        
+
     Yields:
         None
-    
+
     Notes:
         Outputs preprocessed text into a .csv file in the same folder as the source. Adds a 'preprocessed_' prefix to the filename.
     """
-    
-    source = f"{folder}/{file_path}"
+
+    source = f"{input_folder}/{file_path}"
     print(f"Preprocessing text from {source}...")
     df = pd.read_csv(source)
     df['Text_preprocessed'] = df['Text'].apply(lambda x: clean_text(x))
 
-    output = f"{folder}/preprocessed_{file_path}"
+    output = f"{input_folder}/preprocessed_{file_path}"
     df[['Text_preprocessed', 'Label']].to_csv(
-        output, index=False)
+        f"{output_folder}/{output}", index=False)
     print(f"Saved preprocessed text to [{output}]!")
     return None
 
@@ -96,8 +97,8 @@ def split_data(train_path, test_path, TEXT, LABEL, SEED, path='', format='csv', 
         valid_data (torchtext.data.TabularDataset):      validation data
     """
     print(f"Splitting data from [{path}/{train_path}]")
-    
-    fields = [('Text_preprocessed', TEXT), ('Label', LABEL)]    
+
+    fields = [('Text_preprocessed', TEXT), ('Label', LABEL)]
     train_data, test_data = data.TabularDataset.splits(
         path=path,
         train=train_path,

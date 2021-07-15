@@ -11,5 +11,6 @@ src/__pycache__/preprocessing.cpython-36.pyc
 src/__pycache__/train.cpython-36.pyc
 data/preprocessed_Train.csv
 data/preprocessed_Valid.csv
-/results
+data/Test-marvel.csv
 /predictions
+/output

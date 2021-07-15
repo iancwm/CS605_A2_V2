@@ -15,7 +15,7 @@ class RNN(nn.Module):
             bidirectional (bool):   toggles bidirectionality on or off
             dropout (float):        float between 0 and 1. Determines dropout probability between each LSTM layer
             pad_idx (int):          freezes embedding vector at padding_idx during training, i.e. it remains as a fixed “pad”
-        
+
         Outputs:
             self.fc
 
@@ -84,7 +84,7 @@ def predict_sentiment(model, sentence, TEXT, nlp, device):
         TEXT (torchtext.Vocab): Vocab from corpus
         nlp (spacy tokenizer):  spacy tokenizer
         device (torch.device):  Device to predict on
-        
+
     Yields:
         result (float):         Sentiment score for the sentence
     """
@@ -96,6 +96,6 @@ def predict_sentiment(model, sentence, TEXT, nlp, device):
     tensor = tensor.unsqueeze(1)
     length_tensor = torch.LongTensor(length)
     prediction = torch.sigmoid(model(tensor, length_tensor))
-    result = prediction.item()   
+    result = prediction.item()
     print(f"Sentiment = [{result:.3f}] for {sentence[:50]}...")
     return result
